@@ -34,6 +34,7 @@ def request_handler(client_socket, request: str, clients) -> bool:
         client_socket.send("ACK=OK".encode())
         client_user_combo[client_socket] = headers["username"]
         users.append(headers["username"])
+        broadcast_announcement(clients, f'{headers["username"]} joined the Chatroom. %USERJOIN%')
         return True
 
     elif "REQ=HEARTBEAT" in request:
@@ -44,10 +45,17 @@ def request_handler(client_socket, request: str, clients) -> bool:
         try:
             username = client_user_combo[client_socket]
             users.remove(username)
-            broadcast_announcement(clients, f'{username} left the Chatroom. (Left by Request)')
+            broadcast_announcement(clients, f'{username} left the Chatroom. (Left by Request) %USERLEAVE%')
             return False
         except KeyError as e:
             print(f'KeyError: {e}')
+
+    elif "REQ=GETUSERS" in request:
+        user_string = ""
+        for user in users:
+            user_string = user_string + f"{user}%"
+        client_socket.send(f"ACK=USERS${user_string}".encode())
+
 
 
 def broadcast_announcement(clients, message):

@@ -43,15 +43,16 @@ class App:
         GButton_67.grid(row=1, column=1, padx=20, pady=20, sticky="e")
         GButton_67["command"] = self.GButton_67_command
 
-        GListBox_82 = tk.CTkTextbox(root, width=1100, height=629)
+        GListBox_82 = tk.CTkTextbox(root, width=1100, height=629, font=tk.CTkFont(family="system", size=10))
         GListBox_82["borderwidth"] = "1px"
+        font = tk.CTkFont(family="system", size=10)
         ft = tkFont.Font(family='Times', size=10)
         GListBox_82["font"] = ft
         GListBox_82["fg"] = "#333333"
         GListBox_82["justify"] = "center"
         GListBox_82.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
 
-        GListBox_146 = tk.CTkTextbox(root, width=231, height=630)
+        GListBox_146 = tk.CTkTextbox(root, width=231, height=630, font=tk.CTkFont(family="system", size=10))
         GListBox_146["borderwidth"] = "1px"
         ft = tkFont.Font(family='Times', size=10)
         GListBox_146["font"] = ft

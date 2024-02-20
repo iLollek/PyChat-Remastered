@@ -9,6 +9,8 @@ import time
 
 import GUI
 
+from ClientModules import SoundModule, AppConfigParser
+
 # TODO: Check Hearbeat Timeout (Maximum Time) - Interval?
 
 VERSION = "v0.1"
@@ -25,6 +27,15 @@ else:
    program_directory = os.path.dirname(os.path.abspath(__file__))
    ENV = "DEV" # Run in .py File. Assume it's a development environment.
 os.chdir(program_directory)
+
+def fill_userbox(client_socket: socket):
+    """Fills the Userbox using the global "users", it sends a request before."""
+
+    users = []
+    PyChatREMProtocol.request_userlist(client_socket)
+    for user in users:
+        GUI.App.insert_into_userbox(root, user)
+
 
 def close():
     """Closes the PyChat-Remastered Client."""
@@ -55,6 +66,12 @@ class PyChatREMProtocol:
         Returns:
             - success (bool): True if the Server Accepted, False otherwise"""
         
+        try:
+            client_socket.send(f'REQ=GETUSERS'.encode())
+            return True
+        except socket.error as e:
+            print(f'Socket Exception: {e}')
+            return False
         
 
     def request_authentification(client_socket: socket, headers: str) -> bool:
@@ -79,15 +96,24 @@ class PyChatREMProtocol:
             return False
 
     def receive_messages(client_socket: socket):
+        fill_userbox(client_socket)
         while True:
             try:
                 # Receive message from server
                 message = client_socket.recv(1024).decode()
 
-                print(f'Received Message: {message}')
+                print(f'Received Message: {message}') # TODO: Delete this line later?
+
+                if str(message).startswith("[SERVER]") == True:
+                    # This is a Server Announcement / Broadcast.
+                    pass
+
+                if str(message) == "Disconnected from Server":
+                    root.title(f'PyChat Remastered - Not Connected!')
 
                 if str(message).startswith("ACK=") == False:
                     GUI.App.insert_into_chatbox(root, message)
+                
 
                 if not message:
                     # If no message received, close connection
@@ -100,6 +126,7 @@ class PyChatREMProtocol:
                 # If an error occurs, close connection
                 client_socket.close()
                 print("Disconnected from server.")
+                root.title(f'PyChat Remastered - Not Connected!')
                 break
 
     def connect_to_server(domain_or_ip="localhost", port=5555):
@@ -134,6 +161,7 @@ class PyChatREMProtocol:
                 print(f'Sent Heartbeat!')
         except socket.error as e:
             print(f"Error: {e}")
+            root.title(f'PyChat Remastered - Not Connected!')
 
 def get_message_from_user():
     """Grabs the Message in the tkinter Input (Entry). Is Called via a Callback from the GUI."""
@@ -146,11 +174,18 @@ def get_message_from_user():
         except socket.error as e:
             print(f'Error: {e}')
             client_socket.close()
-    
-ticks = 0
-gui_thread = threading.Thread(target=run_gui).start()
-while True:
-    try:
-        PyChatREMProtocol.connect_to_server()
-    except NameError as e:
-        ticks += 1
+            root.title(f'PyChat Remastered - Not Connected!')
+
+if __name__ == "__main__":
+    parser = AppConfigParser("app.config")
+    parser.parse_config()
+    theme = parser.get_config("theme")
+    soundpack = parser.get_config("soundpack")
+
+    ticks = 0
+    gui_thread = threading.Thread(target=run_gui).start()
+    while True:
+        try:
+            PyChatREMProtocol.connect_to_server()
+        except NameError as e:
+            ticks += 1
