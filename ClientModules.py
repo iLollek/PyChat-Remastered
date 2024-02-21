@@ -7,11 +7,21 @@ class SoundModule:
 
     def play_sound_user_join(soundpack: str):
         """Plays the selected sound for User Join. If the value is not found (i.e. broken config File) it will play the default."""
-        raise NotImplementedError
+        if soundpack == "AOL":
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\alt_join.mp3"))
+        elif soundpack == "ICQ":
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\icq_join.mp3"))
+        else:
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\join.mp3"))
     
     def play_sound_user_leave(soundpack: str):
         """Plays the selected sound for User Leave. If the value is not found (i.e. broken config File) it will play the default."""
-        raise NotImplementedError
+        if soundpack == "AOL":
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\alt_leave.mp3"))
+        elif soundpack == "ICQ":
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\icq_leave.mp3"))
+        else:
+            threading.Thread(target=playsound(f"{SoundModule.BaseFilePath}\\leave.mp3"))
     
     def play_sound_message_sent(soundpack: str):
         """Plays the selected sound for sending a Message. If the value is not found (i.e. broken config File) it will play the default."""

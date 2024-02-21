@@ -82,6 +82,16 @@ class App:
         GListBox_146.insert("end", username + "\n")
         GListBox_146.configure(state='disabled')
 
+    def clear_userbox(self):
+        GListBox_146.configure(state='normal')
+        GListBox_146.delete("0.0", "end")
+        GListBox_146.configure(state='disabled')
+
+    def clear_chatbox(self):
+        GListBox_82.configure(state='normal')
+        GListBox_82.delete("0.0", "end")
+        GListBox_82.configure(state='disabled')
+
     def GButton_67_command(self):
         print("Send Message")
         if self.send_message_callback:
