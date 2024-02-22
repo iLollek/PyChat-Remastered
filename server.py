@@ -4,6 +4,8 @@ import sys
 import ast
 import subprocess
 import time
+import logging
+from datetime import datetime
 
 SERVER_TYPE = "unregistered"
 SERVER_VERSION = "v0.1"
@@ -12,6 +14,25 @@ SERVER_ALLOW_FOREIGN_VERSIONS = True
 users = []
 client_user_combo = {}
 clients = []
+
+SERVER_CONFIG = {
+    "log_chatmessages" : True
+}
+
+def timestamp():
+   now = datetime.now()
+   timestamp = now.strftime("%H:%M:%S")
+   return timestamp
+
+def log_chatmessage(message: str):
+    """Logs a Chatmessage if log_chatmessages in SERVER_CONFIG is set to True."""
+
+    # TODO: Filter out requests
+
+    if SERVER_CONFIG["log_chatmessages"] == True:
+        f = open(f'chat.log', 'a')
+        f.write(f'[{timestamp()}] {message}\n')
+        f.close()
 
 def request_handler(client_socket, request: str, clients) -> bool:
     """The PyChat-REM according Request Handler.
@@ -75,6 +96,7 @@ def handle_client(client_socket, clients):
             # Receive message from client
             message = client_socket.recv(1024).decode()
             print(f'Message: {message}')
+            log_chatmessage(message)
 
             if str(message).startswith("REQ="):
                 exit_code = request_handler(client_socket, message, clients)
