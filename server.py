@@ -7,6 +7,19 @@ import time
 import logging
 from datetime import datetime
 
+def get_outbound_local_ip():
+    """Gets the Verified & Used outbound IP-Address for a LAN Environment"""
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
+
+SERVER_IP = get_outbound_local_ip()
+SERVER_PORT = 5555
+
 SERVER_TYPE = "unregistered"
 SERVER_VERSION = "v0.1"
 SERVER_ALLOW_FOREIGN_VERSIONS = True
@@ -29,7 +42,7 @@ def log_chatmessage(message: str):
 
     if message.startswith(f'REQ=') == False:
         if SERVER_CONFIG["log_chatmessages"] == True:
-            f = open(f'chat.log', 'a')
+            f = open(f'server_chat.log', 'a')
             f.write(f'[{timestamp()}] {message}\n')
             f.close()
 
@@ -125,6 +138,7 @@ def handle_client(client_socket, clients):
             if client_user_combo[client_socket] in users:
                 broadcast_announcement(clients, f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
                 log_chatmessage(f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
+                users.remove(client_user_combo[client_socket])
             print(f"Connection closed: {client_socket}")
             break
 
@@ -133,7 +147,7 @@ def main():
     # Create socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Bind socket to localhost and port 5555
-    server_socket.bind(('localhost', 5555))
+    server_socket.bind((SERVER_IP, SERVER_PORT))
     # Listen for incoming connections
     server_socket.listen(5)
 
@@ -153,7 +167,7 @@ def main():
 
 def update_windowtitle_thread():
     while True:
-        subprocess.Popen(["title", f"Connected Clients: {len(clients)} - Users in Users list: {len(users)} - Socket-Username Combos: {len(client_user_combo)}"], shell=True)
+        subprocess.Popen(["title", f"Connected Clients: {len(clients)} - Users in Users list: {len(users)} - Socket-Username Combos: {len(client_user_combo)} - Version: {SERVER_VERSION} - Type: {SERVER_TYPE}"], shell=True)
         time.sleep(5)
 
 if __name__ == "__main__":

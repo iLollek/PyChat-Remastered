@@ -1,7 +1,33 @@
 import customtkinter as tk
 import tkinter.font as tkFont
-
+from ClientModules import AppConfigParser
 from functools import partial
+import os
+import sys
+
+if getattr(sys, 'frozen', False):
+   program_directory = os.path.dirname(os.path.abspath(sys.executable))
+else:
+   program_directory = os.path.dirname(os.path.abspath(__file__))
+
+def get_theme():
+    """Gets the Users Theme and applies it to the GUI."""
+
+    parser = AppConfigParser(f'{program_directory}\\app.config')
+    parser.parse_config()
+    theme = parser.get_config("theme")
+
+    match theme:
+        case "default":
+            tk.set_default_color_theme("blue")
+        case "green":
+            tk.set_default_color_theme(theme)
+        case "dark-blue":
+            tk.set_default_color_theme(theme)
+        case _:
+            tk.set_default_color_theme("blue")
+    
+
 
 class App:
     def __init__(self, root, send_message_callback):
@@ -103,6 +129,7 @@ class App:
         return CONTENT
 
 if __name__ == "__main__":
+    get_theme()
     root = tk.CTk()
     app = App(root, None)
     root.mainloop()
