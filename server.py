@@ -20,19 +20,18 @@ SERVER_CONFIG = {
 }
 
 def timestamp():
-   now = datetime.now()
-   timestamp = now.strftime("%H:%M:%S")
-   return timestamp
+    now = datetime.now()
+    formatted_timestamp = now.strftime("%d %b %Y - %H:%M:%S")
+    return formatted_timestamp
 
 def log_chatmessage(message: str):
-    """Logs a Chatmessage if log_chatmessages in SERVER_CONFIG is set to True."""
+    """Logs a Chatmessage if log_chatmessages in SERVER_CONFIG is set to True. Filters out Requests."""
 
-    # TODO: Filter out requests
-
-    if SERVER_CONFIG["log_chatmessages"] == True:
-        f = open(f'chat.log', 'a')
-        f.write(f'[{timestamp()}] {message}\n')
-        f.close()
+    if message.startswith(f'REQ=') == False:
+        if SERVER_CONFIG["log_chatmessages"] == True:
+            f = open(f'chat.log', 'a')
+            f.write(f'[{timestamp()}] {message}\n')
+            f.close()
 
 def request_handler(client_socket, request: str, clients) -> bool:
     """The PyChat-REM according Request Handler.
@@ -56,6 +55,7 @@ def request_handler(client_socket, request: str, clients) -> bool:
         client_user_combo[client_socket] = headers["username"]
         users.append(headers["username"])
         broadcast_announcement(clients, f'{headers["username"]} joined the Chatroom. %USERJOIN%')
+        log_chatmessage(f'{headers["username"]} joined the Chatroom.')
         return True
 
     elif "REQ=HEARTBEAT" in request:
@@ -67,6 +67,7 @@ def request_handler(client_socket, request: str, clients) -> bool:
             username = client_user_combo[client_socket]
             users.remove(username)
             broadcast_announcement(clients, f'{username} left the Chatroom. (Left by Request) %USERLEAVE%')
+            log_chatmessage(f"{username} left the Chatroom. (Left by Request)")
             return False
         except KeyError as e:
             print(f'KeyError: {e}')
@@ -123,6 +124,7 @@ def handle_client(client_socket, clients):
             clients.remove(client_socket)
             if client_user_combo[client_socket] in users:
                 broadcast_announcement(clients, f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
+                log_chatmessage(f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
             print(f"Connection closed: {client_socket}")
             break
 
