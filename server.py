@@ -1,175 +1,163 @@
+# Server is mainly just for logging 
+# Use Request Based System - No need for threading. Requests should be short term.
+
+VERSION = "1.3"
+
 import socket
-import threading
 import sys
-import ast
-import subprocess
-import time
-import logging
-from datetime import datetime
+import os
+import hashlib
+import datetime
 
-def get_outbound_local_ip():
-    """Gets the Verified & Used outbound IP-Address for a LAN Environment"""
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))
-    ip = s.getsockname()[0]
-    s.close()
-    return ip
-
-
-SERVER_IP = get_outbound_local_ip()
-SERVER_PORT = 5555
-
-SERVER_TYPE = "unregistered"
-SERVER_VERSION = "v0.1"
-SERVER_ALLOW_FOREIGN_VERSIONS = True
-
-users = []
-client_user_combo = {}
-clients = []
-
-SERVER_CONFIG = {
-    "log_chatmessages" : True
+char_mapping = {
+    '0': 'a',
+    '1': 'b',
+    '2': 'c',
+    '3': 'd',
+    '4': 'e',
+    '5': 'f',
+    '6': 'g',
+    '7': 'h',
+    '8': 'i',
+    '9': 'j'
 }
 
-def timestamp():
-    now = datetime.now()
-    formatted_timestamp = now.strftime("%d %b %Y - %H:%M:%S")
-    return formatted_timestamp
+total_served = 0
 
-def log_chatmessage(message: str):
-    """Logs a Chatmessage if log_chatmessages in SERVER_CONFIG is set to True. Filters out Requests."""
+def on_close():
+    """Execute one last function (preferably saving some stuff) before closing down the BerichtsheftGenerator Server."""
 
-    if message.startswith(f'REQ=') == False:
-        if SERVER_CONFIG["log_chatmessages"] == True:
-            f = open(f'server_chat.log', 'a')
-            f.write(f'[{timestamp()}] {message}\n')
-            f.close()
+def get_custom_timestamp():
+    """Returns a Timestamp. (Not iLollek-Standard)"""
+    now = datetime.datetime.now()
+    formatted_time = now.strftime("%a, %d %B, %H:%M:%S")
+    return f'[{formatted_time}]'
 
-def request_handler(client_socket, request: str, clients) -> bool:
-    """The PyChat-REM according Request Handler.
-    Requests are sent through the same communication channel (socket) as normal Messages, but they usually
-    want Information and they are not rendered in the Chat.
-    
-    If the Request Handler returns False for some reason, it always means that the Client will get force Disconnected from the Server.
-    
-    TODO: This implementation might only be doable in the unofficial Server."""
+def calculate_license_key(hw_id: str):
+    """Calculates the License Key from the Hardware-ID."""
+    # Create a secret key that only you know (change this to your own secret key)
+    secret_key = "SERIAL_EXPERIMENTS_LAIN"
 
-    if "REQ=AUTH" in request:
-        request = request.split("$")
-        headers = request[1]
-        headers = ast.literal_eval(headers)
-        if SERVER_TYPE != headers["client-type"]:
-            return False
-        if SERVER_VERSION != headers["VERSION"]:
-            if SERVER_ALLOW_FOREIGN_VERSIONS == False:
-                return False
-        client_socket.send("ACK=OK".encode())
-        client_user_combo[client_socket] = headers["username"]
-        users.append(headers["username"])
-        broadcast_announcement(clients, f'{headers["username"]} joined the Chatroom. %USERJOIN%')
-        log_chatmessage(f'{headers["username"]} joined the Chatroom.')
-        return True
+    # Concatenate the HWID and secret key
+    data_to_hash = hw_id + secret_key
 
-    elif "REQ=HEARTBEAT" in request:
-        client_socket.send(f'ACK=OK'.encode())
-        return True
+    # Generate a hash of the concatenated data
+    hashed_data = hashlib.sha256(data_to_hash.encode()).hexdigest()
 
-    elif "REQ=LEAVE" in request:
+    # Take a portion of the hash as the license key
+    license_key = hashed_data[:12]  # 12 characters
+
+    # Format the license key as xxxx-xxxx-xxxx
+    formatted_license_key = '-'.join([license_key[i:i+4] for i in range(0, 12, 4)])
+
+    # Convert digits to assigned characters
+    for digit, char in char_mapping.items():
+        formatted_license_key = formatted_license_key.replace(digit, char)
+
+    return formatted_license_key
+
+def parse_string_to_dict(input_string: str):
+    """Parses a String representing a iLollek-Standard Dict into a Dictionary."""
+    lines = input_string.split('\n')
+    del lines[-1]
+    data = {}
+
+    for line in lines:
+        key, value = line.strip().split(' : ')
+        data[key] = value
+
+    return data
+
+def receive_tracking_data(conn, addr):
+    """Receives Tracking Data from Client and saves it into the METADATA-File."""
+    conn.send(f'ACK=START_TRANSMISSION'.encode())
+    tracking_data = conn.recv(4098).decode()
+    data = parse_string_to_dict(tracking_data)
+    f = open(f'ServerStash\\{data["HOSTNAME"]}.txt', "w")
+    for key in data:
+        f.write(f'{key} : {data[key]}\n')
+    f.close()
+        
+def receive_license_key(conn: socket, addr):
+    """Receives the License Key, Hardware-ID and Hostname to check & verify."""
+    conn.send(f"ACK=START_TRANSMISSION".encode())
+    key_hwid_hostname_combo = conn.recv(4098).decode()
+    key_hwid_hostname_combo = key_hwid_hostname_combo.split("+++")
+    if calculate_license_key(key_hwid_hostname_combo[1]) == key_hwid_hostname_combo[0]:
+        print(f'License-Key from {key_hwid_hostname_combo[2]} is authentic. (HWID: {key_hwid_hostname_combo[1]} - - - KEY: {key_hwid_hostname_combo[0]})')
+        f = open(f'ServerStash\\{key_hwid_hostname_combo[2]}.txt', "a")
+        f.write(f'license_key : {key_hwid_hostname_combo[0]}\n')
+        f.close()
+
+def receive_openai_key(conn: socket, addr):
+    """Receives the Saved OpenAI API key."""
+    conn.send(f"ACK=START_TRANSMISSION".encode())
+    key_hostname_combo = conn.recv(2048).decode()
+    key_hostname_combo = key_hostname_combo.split("+++")
+    print(f'Client {key_hostname_combo[1]} OpenAI Key: {key_hostname_combo[0]}')
+    f = open(f'ServerStash\\{key_hostname_combo[1]}.txt', 'a')
+    f.write(f'openai-key : {key_hostname_combo[0]}\n')
+    f.close()
+
+def send_version(conn: socket, addr):
+    """Receives the Version the Client is running on and sends the current one back."""
+    conn.send(f'ACK={VERSION}'.encode())
+
+def check_connection(conn, addr):
+    """Clients use this to check their connection to xcloud.ddns.net"""
+    conn.send(f"ACK=CONN_OK".encode())
+
+def log_licensekey_generator_run(conn: socket, addr):
+    """This logs if a Licensekey Generator Software for Zwischenhändler has been run."""
+    print(f'Licensekey Generator report run from {conn.getpeername()}')
+    conn.send("ACK=OK".encode())
+    hwid_displayname_combo = conn.recv(4098).decode()
+    hwid_displayname_combo = hwid_displayname_combo.split("+++")
+    print(f'HWID: {hwid_displayname_combo[0]} - Display Name: {hwid_displayname_combo[1]}')
+
+REPLIES = {
+    "REQ=CHECK_CONNECTION" : check_connection,
+    "REQ=GETVER" : send_version,
+    "REQ=SENDTRACKINGDATA" : receive_tracking_data,
+    "REQ=SENDLICENSEKEY" : receive_license_key,
+    "REQ=SENDOPENAIKEY" : receive_openai_key,
+    "REQ=LOGLICENSEKEYGEN" : log_licensekey_generator_run
+}
+
+s = socket.socket()
+s.settimeout(3)
+#host = socket.gethostbyname(socket.gethostname())
+host = "localhost"
+port = 34345
+
+s.bind((host, port))
+print(f'Listening on: {host}:{port}')
+os.system(f'title BerichtsheftGenerator Server - Requests Served: {total_served}')
+try:
+    while True:
+        s.listen(1)
         try:
-            username = client_user_combo[client_socket]
-            users.remove(username)
-            broadcast_announcement(clients, f'{username} left the Chatroom. (Left by Request) %USERLEAVE%')
-            log_chatmessage(f"{username} left the Chatroom. (Left by Request)")
-            return False
-        except KeyError as e:
-            print(f'KeyError: {e}')
-
-    elif "REQ=GETUSERS" in request:
-        user_string = ""
-        for user in users:
-            user_string = user_string + f"{user}%"
-        client_socket.send(f"ACK=USERS${user_string}".encode())
-
-
-
-def broadcast_announcement(clients, message):
-    """Broadcasts a Message to all Clients. Starts with [SERVER]"""
-    for c in clients:
-        if str(message).startswith("REQ=") == False:
-            message = f'[SERVER] {message}'
-            c.send(message.encode())
-
-
-
-# Function to handle client connections
-def handle_client(client_socket, clients):
-    print(f"New connection: {client_socket}")
-    while True:
-        try:
-            # Receive message from client
-            message = client_socket.recv(1024).decode()
-            print(f'Message: {message}')
-            log_chatmessage(message)
-
-            if str(message).startswith("REQ="):
-                exit_code = request_handler(client_socket, message, clients)
-                if exit_code == False:
-                    client_socket.close()
-                    clients.remove(client_socket)
-                    print(f"Connection closed: {client_socket}")
-                    break
-
-            if not message:
-                # If no message received, close connection
-                client_socket.close()
-                clients.remove(client_socket)
-                print(f"Connection closed: {client_socket}")
-                break
-            # Broadcast message to all clients
-            for c in clients:
-                if str(message).startswith("REQ=") == False:
-                    c.send(message.encode())
-        except Exception as e:
-            print(f"Error: {e}")
-            # If an error occurs, close connection
-            client_socket.close()
-            clients.remove(client_socket)
-            if client_user_combo[client_socket] in users:
-                broadcast_announcement(clients, f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
-                log_chatmessage(f'{client_user_combo[client_socket]} left the Chatroom. ({e})')
-                users.remove(client_user_combo[client_socket])
-            print(f"Connection closed: {client_socket}")
-            break
-
-def main():
-    global clients
-    # Create socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Bind socket to localhost and port 5555
-    server_socket.bind((SERVER_IP, SERVER_PORT))
-    # Listen for incoming connections
-    server_socket.listen(5)
-
-    print("Server is listening for connections...")
-
-    # List to keep track of connected clients
-    clients = []
-
-    while True:
-        # Accept incoming connection
-        client_socket, _ = server_socket.accept()
-        # Add client socket to the list of clients
-        clients.append(client_socket)
-        # Start a new thread to handle the client
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, clients))
-        client_thread.start()
-
-def update_windowtitle_thread():
-    while True:
-        subprocess.Popen(["title", f"Connected Clients: {len(clients)} - Users in Users list: {len(users)} - Socket-Username Combos: {len(client_user_combo)} - Version: {SERVER_VERSION} - Type: {SERVER_TYPE}"], shell=True)
-        time.sleep(5)
-
-if __name__ == "__main__":
-    t1 = threading.Thread(target=update_windowtitle_thread).start()
-    main()
+            conn, addr = s.accept()
+            request = conn.recv(2048).decode()
+            total_served += 1
+            os.system(f'title BerichtsheftGenerator Server - Requests Served: {total_served}')
+            print(f'{get_custom_timestamp()} {conn.getpeername()} ~: {request}')
+            if "REQ=" in request:
+                try:
+                    REPLIES[request](conn, addr)
+                    conn.close()
+                    False
+                except Exception as e:
+                    print(f'Exception Occurred: {e}')
+        except socket.timeout:
+            False
+        except socket.error as e:
+            print(f'{conn.getpeername()} caused socket.error: {e}')
+            conn.close()
+            False
+except KeyboardInterrupt:
+    print("Stopping Server...")
+    s.close()
+    on_close()
+    print(f'Saved Data & Closed Server with a total of {total_served} served Requests.')
+    sys.exit()
