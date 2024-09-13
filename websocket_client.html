@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyChat-Remastered (Web Client)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        #chat-container {
+            width: 80%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #message-box {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+        #user-input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #send-button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <h1>Welcome to PyChat-Remastered</h1>
+        <div id="message-box"></div>
+        <input type="text" id="user-input" placeholder="Type your message here..." />
+        <button id="send-button">Send</button>
+    </div>
+
+    <script>
+        let ws;
+        let username = prompt("Please enter your username:");
+
+        function connectWebSocket() {
+            ws = new WebSocket("wss://ilollek.net:8765");
+
+            ws.onopen = function() {
+                console.log("Connected to WebSocket server.");
+                // Send the initial authentication request (as per your protocol)
+                ws.send(`REQ=AUTH${JSON.stringify({"client-type": "web", "VERSION": "v0.1", "username": username})}`);
+            };
+
+            ws.onmessage = function(event) {
+    const messageBox = document.getElementById('message-box');
+    const message = event.data;
+
+    // Check if the message starts with "REQ="
+    if (!message.startsWith("[SERVER] REQ=")) {
+        // Append the received message to the chat box
+        messageBox.innerHTML += `<p>${message}</p>`;
+        messageBox.scrollTop = messageBox.scrollHeight;
+    }
+};
+
+            ws.onclose = function() {
+                console.log("Disconnected from WebSocket server.");
+                alert("Disconnected from chat.");
+            };
+
+            ws.onerror = function(error) {
+                console.error("WebSocket error:", error);
+                alert("WebSocket error occurred!");
+            };
+        }
+
+        document.getElementById('send-button').addEventListener('click', function() {
+            const input = document.getElementById('user-input');
+            const message = input.value;
+
+            if (message) {
+                ws.send(`${username}: ${message}`);
+                input.value = '';  // Clear input field
+            }
+        });
+
+        // Connect to WebSocket on page load
+        connectWebSocket();
+    </script>
+
+</body>
+</html>
