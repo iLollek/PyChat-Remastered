@@ -8,6 +8,8 @@ import logging
 from datetime import datetime
 import asyncio
 import websockets
+import websockets.legacy
+import websockets.legacy.server
 
 # WebSocket clients list
 websocket_clients = set()
@@ -48,17 +50,26 @@ def log_chatmessage(message: str):
             with open('server_chat.log', 'a') as f:
                 f.write(f'[{timestamp()}] {message}\n')
 
+
+
+
+
 def request_handler(client_socket, request: str, clients) -> bool:
-    """Handle requests from TCP clients."""
+    """Handle requests from TCP & WebSocket clients."""
     if "REQ=AUTH" in request:
         request = request.split("$")
         headers = ast.literal_eval(request[1])
-        if SERVER_TYPE != headers["client-type"]:
-            return False
+
+        print(f'Client name: {headers["username"]}')
+
+        if SERVER_TYPE != headers["client-type"] and headers["client-type"] != "web":
+            return False 
         if SERVER_VERSION != headers["VERSION"]:
             if not SERVER_ALLOW_FOREIGN_VERSIONS:
                 return False
-        client_socket.send("ACK=OK".encode())
+
+        if isinstance(client_socket, socket.socket):
+            client_socket.send("ACK=OK".encode())
         client_user_combo[client_socket] = headers["username"]
         users.append(headers["username"])
         broadcast_announcement(clients, f'{headers["username"]} joined the Chatroom. %USERJOIN%')
@@ -83,6 +94,10 @@ def request_handler(client_socket, request: str, clients) -> bool:
         user_string = "%".join(users)
         client_socket.send(f"ACK=USERS${user_string}".encode())
         return True
+    
+
+
+
 
 def broadcast_announcement(clients, message):
     """Broadcasts a message to all TCP clients."""
@@ -138,8 +153,13 @@ async def websocket_handler(websocket, path):
         async for message in websocket:
             print(f"Message from WebSocket client: {message}")
             log_chatmessage(message)
+            if str(message).startswith("REQ="):
+                exit_code = request_handler(websocket, message, clients)
+            
             # Broadcast to both TCP and WebSocket clients
-            broadcast_announcement(clients, message)
+            for c in clients:
+                if not message.startswith("REQ="):
+                    c.send(message.encode())
             await broadcast_to_websocket_clients(message)
     except websockets.ConnectionClosed:
         print(f"WebSocket connection closed: {websocket.remote_address}")
@@ -149,7 +169,8 @@ async def websocket_handler(websocket, path):
 async def broadcast_to_websocket_clients(message: str):
     if websocket_clients:  # Ensure there are connected clients
         # Create tasks for each websocket client send operation
-        await asyncio.wait([asyncio.create_task(ws.send(f"[SERVER] {message}")) for ws in websocket_clients])
+        await asyncio.wait([asyncio.create_task(ws.send(f"{message}")) for ws in websocket_clients])
+
 
 def main():
     global clients

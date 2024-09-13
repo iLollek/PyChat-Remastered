@@ -61,20 +61,22 @@
         let username = prompt("Please enter your username:");
 
         function connectWebSocket() {
-            ws = new WebSocket("wss://ilollek.net:8765");
+            ws = new WebSocket("ws://insecure.ilollek.net:8765");
 
             ws.onopen = function() {
                 console.log("Connected to WebSocket server.");
                 // Send the initial authentication request (as per your protocol)
-                ws.send(`REQ=AUTH${JSON.stringify({"client-type": "web", "VERSION": "v0.1", "username": username})}`);
+                ws.send(`REQ=AUTH$${JSON.stringify({"client-type": "web", "VERSION": "v0.1", "username": username + " (WebSocket)"})}`);
             };
 
             ws.onmessage = function(event) {
     const messageBox = document.getElementById('message-box');
     const message = event.data;
 
+    console.log(message);
+
     // Check if the message starts with "REQ="
-    if (!message.startsWith("[SERVER] REQ=")) {
+    if (!message.startsWith("REQ=")) {
         // Append the received message to the chat box
         messageBox.innerHTML += `<p>${message}</p>`;
         messageBox.scrollTop = messageBox.scrollHeight;
